@@ -16,6 +16,38 @@ app.use(express.json());
 // Serve front-end static files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Lazy database initialization middleware (crucial for Vercel/serverless environments)
+let dbInitialized = false;
+let dbInitializationPromise = null;
+
+async function ensureDbInitialized() {
+  if (dbInitialized) return;
+  if (!dbInitializationPromise) {
+    dbInitializationPromise = db.initializeDatabase()
+      .then(() => {
+        dbInitialized = true;
+        dbInitializationPromise = null;
+      })
+      .catch((err) => {
+        dbInitializationPromise = null; // retry on next request if it fails
+        throw err;
+      });
+  }
+  await dbInitializationPromise;
+}
+
+app.use(async (req, res, next) => {
+  // Only try initializing database for API routes
+  if (req.path.startsWith('/api')) {
+    try {
+      await ensureDbInitialized();
+    } catch (err) {
+      console.error('Lazy database initialization failed:', err.message);
+    }
+  }
+  next();
+});
+
 /**
  * 1. Analyze and store/update profile
  * POST /api/profiles/:username
@@ -222,6 +254,7 @@ app.use((err, req, res, next) => {
 async function startServer() {
   try {
     await db.initializeDatabase();
+    dbInitialized = true; // Mark as initialized to prevent redundant middleware initialization
     app.listen(PORT, () => {
       console.log(`\n==================================================================`);
       console.log(`GitHub Profile Analyzer API is running at: http://localhost:${PORT}`);
@@ -238,4 +271,9 @@ async function startServer() {
   }
 }
 
-startServer();
+// Bypasses local app.listen() when imported as a serverless function module on Vercel
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = app;

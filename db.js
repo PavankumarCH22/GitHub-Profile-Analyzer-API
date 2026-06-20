@@ -35,32 +35,42 @@ async function initializeDatabase() {
 
   let tempConnection;
   try {
-    // 1. Connect to MySQL server without database selected to verify credentials
+    // 1. Try connecting directly to the database to see if it already exists and is accessible
     tempConnection = await mysql.createConnection({
       host,
       port,
       user,
-      password
+      password,
+      database: dbName
     });
-  } catch (error) {
-    console.error('\n==================================================================');
-    console.error('DATABASE CONNECTION ERROR: Failed to connect to MySQL server!');
-    console.error(`Host: ${host}:${port}, User: ${user}`);
-    console.error(`Error details: ${error.message}`);
-    console.error('\nACTION REQUIRED: Please check if MySQL is running and set the correct');
-    console.error('database password in your .env file.');
-    console.error('==================================================================\n');
-    throw error;
-  }
-
-  try {
-    // 2. Create the database if it doesn't exist
-    await tempConnection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
+    console.log(`Connected directly to existing database '${dbName}'.`);
     await tempConnection.end();
-  } catch (error) {
-    if (tempConnection) await tempConnection.end();
-    console.error(`Failed to create database '${dbName}': ${error.message}`);
-    throw error;
+    tempConnection = null;
+  } catch (directError) {
+    // Direct connection failed (e.g. database does not exist or access issues).
+    // Try connecting to the MySQL server root to create it.
+    try {
+      tempConnection = await mysql.createConnection({
+        host,
+        port,
+        user,
+        password
+      });
+      console.log(`Database '${dbName}' does not exist or direct connection failed. Creating it...`);
+      await tempConnection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
+      await tempConnection.end();
+      tempConnection = null;
+    } catch (error) {
+      if (tempConnection) await tempConnection.end();
+      console.error('\n==================================================================');
+      console.error('DATABASE CONNECTION ERROR: Failed to connect to MySQL server!');
+      console.error(`Host: ${host}:${port}, User: ${user}`);
+      console.error(`Error details: ${error.message}`);
+      console.error('\nACTION REQUIRED: Please check if MySQL is running and set the correct');
+      console.error('database password in your .env file.');
+      console.error('==================================================================\n');
+      throw error;
+    }
   }
 
   // 3. Initialize the connection pool (now that the database is guaranteed to exist)
