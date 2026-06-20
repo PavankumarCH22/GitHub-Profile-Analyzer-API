@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Profile Analyzer & Intelligence Dashboard</title>
+  <!-- FontAwesome & Google Fonts -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+  <header class="no-print">
+    <h1>GitHub Profile Analyzer</h1>
+    <p class="subtitle">Extract public profile statistics, calculate repository insights, and save profile intelligence in a local database.</p>
+  </header>
+
+  <main>
+    <!-- Left Column: Search & History -->
+    <div class="panel no-print">
+      <form id="searchForm" class="search-form">
+        <div class="input-group">
+          <i class="fa-brands fa-github"></i>
+          <input type="text" id="usernameInput" class="search-input" placeholder="Enter GitHub username..." required autocomplete="off">
+        </div>
+        <button type="submit" id="searchBtn" class="btn btn-primary">
+          <i class="fa-solid fa-magnifying-glass-chart"></i> Analyze Profile
+        </button>
+      </form>
+
+      <div class="history-section">
+        <h2><i class="fa-solid fa-history"></i> Stored Analyses</h2>
+        <div id="historyList" class="history-list">
+          <div class="empty-history" style="text-align: center; color: var(--text-muted); padding: 1.5rem; font-size: 0.9rem;">
+            No stored analyses yet.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Detail / Tab System -->
+    <div class="panel main-content-panel" style="min-height: 550px; position: relative;">
+      
+      <!-- Tabs header -->
+      <div class="tabs-header no-print" id="tabsHeader" style="display: none; margin-bottom: 1.5rem;">
+        <button class="tab-btn active" onclick="switchTab('single')"><i class="fa-solid fa-user"></i> Profile Details</button>
+        <button class="tab-btn" onclick="switchTab('compare')"><i class="fa-solid fa-code-compare"></i> Compare Profiles</button>
+      </div>
+
+      <!-- Welcome/Empty State -->
+      <div id="welcomeState" class="empty-state">
+        <i class="fa-solid fa-chart-line"></i>
+        <h3>Profile Intelligence System</h3>
+        <p>Enter a GitHub username on the left to pull public data, calculate total stars, languages, and repo statistics.</p>
+      </div>
+
+      <!-- Loading State -->
+      <div id="loadingState" class="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Analyzing Profile...</div>
+        <div class="loading-subtext">Fetching profile details and scanning public repositories...</div>
+      </div>
+
+      <!-- Result View: Single Profile -->
+      <div id="singleProfileView" class="profile-container" style="display: none;">
+        
+        <!-- Profile Header Card -->
+        <div class="profile-card">
+          <div class="profile-header-actions no-print">
+            <button onclick="window.print()" class="btn btn-secondary btn-sm">
+              <i class="fa-solid fa-file-pdf"></i> Export Report
+            </button>
+          </div>
+
+          <div class="profile-identity">
+            <div class="profile-avatar-wrapper">
+              <img id="profAvatar" src="" alt="Avatar" class="profile-avatar">
+            </div>
+            <div class="profile-names">
+              <h2 id="profName">User Name</h2>
+              <a id="profGithubLink" href="" target="_blank"><i class="fa-brands fa-github"></i> @username</a>
+            </div>
+          </div>
+          
+          <p id="profBio" class="profile-bio">User bio goes here...</p>
+
+          <div class="profile-details-grid">
+            <div class="detail-item" id="profCompanyItem">
+              <i class="fa-solid fa-building"></i> <span id="profCompany">Company</span>
+            </div>
+            <div class="detail-item" id="profLocationItem">
+              <i class="fa-solid fa-location-dot"></i> <span id="profLocation">Location</span>
+            </div>
+            <div class="detail-item" id="profBlogItem">
+              <i class="fa-solid fa-link"></i> <a id="profBlog" href="" target="_blank" style="color: var(--text-secondary); text-decoration: none;">Blog</a>
+            </div>
+            <div class="detail-item" id="profEmailItem">
+              <i class="fa-solid fa-envelope"></i> <span id="profEmail">Email</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Numeric Statistics Counter Grid -->
+        <div class="stats-grid">
+          <div class="stat-box stars-stat">
+            <i class="fa-solid fa-star"></i>
+            <div class="stat-num" id="statStars">0</div>
+            <div class="stat-label">Total Stars</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" id="statRepos">0</div>
+            <div class="stat-label">Public Repos</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" id="statFollowers">0</div>
+            <div class="stat-label">Followers</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" id="statFollowing">0</div>
+            <div class="stat-label">Following</div>
+          </div>
+        </div>
+
+        <!-- Deep Insights Layout -->
+        <div class="insights-layout">
+          <!-- Left: Language Chart -->
+          <div>
+            <h3 class="section-title"><i class="fa-solid fa-chart-pie"></i> Language Distribution</h3>
+            <div class="chart-container-wrapper">
+              <canvas id="languageChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Right: Repositories List with search/filter -->
+          <div>
+            <h3 class="section-title"><i class="fa-solid fa-list-check"></i> Repositories</h3>
+            
+            <div class="repo-controls no-print">
+              <input type="text" id="repoSearch" class="search-input" placeholder="Filter repositories..." style="padding: 0.5rem 1rem; font-size: 0.9rem; margin-bottom: 0.75rem;">
+              <select id="repoSort" class="search-input" style="padding: 0.5rem 1rem; font-size: 0.9rem; margin-bottom: 0.75rem; width: auto; cursor: pointer;">
+                <option value="stars">Sort by Stars</option>
+                <option value="forks">Sort by Forks</option>
+                <option value="name">Sort by Name</option>
+              </select>
+            </div>
+
+            <div id="reposContainer" class="repos-list">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Result View: Compare Profiles -->
+      <div id="compareProfilesView" class="profile-container" style="display: none;">
+        <h3 class="section-title"><i class="fa-solid fa-code-compare"></i> Side-by-Side Comparison</h3>
+        
+        <div class="compare-selectors no-print">
+          <div style="flex: 1;">
+            <label class="control-label">Profile A</label>
+            <select id="compareSelectA" class="search-input" onchange="runComparison()"></select>
+          </div>
+          <div style="font-size: 1.5rem; align-self: flex-end; padding-bottom: 0.5rem; color: var(--text-muted);">VS</div>
+          <div style="flex: 1;">
+            <label class="control-label">Profile B</label>
+            <select id="compareSelectB" class="search-input" onchange="runComparison()"></select>
+          </div>
+        </div>
+
+        <div id="compareResults" style="display: none; flex-direction: column; gap: 2rem;">
+          <div class="comparison-table-wrapper">
+            <table class="comparison-table">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th id="compareNameA">Profile A</th>
+                  <th id="compareNameB">Profile B</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Total Stars</td>
+                  <td id="compareStarsA">0</td>
+                  <td id="compareStarsB">0</td>
+                </tr>
+                <tr>
+                  <td>Public Repositories</td>
+                  <td id="compareReposA">0</td>
+                  <td id="compareReposB">0</td>
+                </tr>
+                <tr>
+                  <td>Followers</td>
+                  <td id="compareFollowersA">0</td>
+                  <td id="compareFollowersB">0</td>
+                </tr>
+                <tr>
+                  <td>Following</td>
+                  <td id="compareFollowingA">0</td>
+                  <td id="compareFollowingB">0</td>
+                </tr>
+                <tr>
+                  <td>Top Programming Language</td>
+                  <td id="compareLangA">-</td>
+                  <td id="compareLangB">-</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="chart-container-wrapper" style="max-width: 600px; margin: 0 auto; width: 100%;">
+            <canvas id="comparisonChart"></canvas>
+          </div>
+        </div>
+
+        <div id="compareEmpty" style="text-align: center; color: var(--text-secondary); padding: 3rem 1rem;">
+          <i class="fa-solid fa-people-arrows" style="font-size: 3rem; margin-bottom: 1rem; color: var(--primary);"></i>
+          <p>Please select two different profiles from the dropdowns above to compare their statistics side-by-side.</p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <footer class="no-print">
+    <p>GitHub Profile Analyzer API &copy; 2026. Made with ❤️ for developers.</p>
+  </footer>
+
+  <script>
+    // App State
+    let currentProfile = null;
+    let storedProfilesList = [];
+    let activeTab = 'single';
+    
+    // Chart References
+    let languageChartRef = null;
+    let comparisonChartRef = null;
+
+    // Elements
+    const searchForm = document.getElementById('searchForm');
+    const usernameInput = document.getElementById('usernameInput');
+    const searchBtn = document.getElementById('searchBtn');
+    
+    const welcomeState = document.getElementById('welcomeState');
+    const loadingState = document.getElementById('loadingState');
+    const singleProfileView = document.getElementById('singleProfileView');
+    const compareProfilesView = document.getElementById('compareProfilesView');
+    const historyList = document.getElementById('historyList');
+    const tabsHeader = document.getElementById('tabsHeader');
+    
+    const repoSearch = document.getElementById('repoSearch');
+    const repoSort = document.getElementById('repoSort');
+
+    // Language colors map
+    const langColors = {
+      'JavaScript': '#f1e05a',
+      'TypeScript': '#3178c6',
+      'Python': '#3572A5',
+      'Java': '#b07219',
+      'C++': '#f34b7d',
+      'HTML': '#e34c26',
+      'CSS': '#563d7c',
+      'Go': '#00ADD8',
+      'Rust': '#dea584',
+      'Ruby': '#701516',
+      'PHP': '#4F5D95',
+      'C#': '#178600',
+      'Shell': '#89e051',
+      'Vue': '#41b883',
+      'React': '#61dafb',
+      'Swift': '#f05138',
+      'Kotlin': '#A97BFF',
+      'Dart': '#00B4AB'
+    };
+
+    // Load stored profiles on startup
+    window.addEventListener('DOMContentLoaded', fetchHistory);
+
+    searchForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = usernameInput.value.trim();
+      if (!username) return;
+
+      showLoading(true);
+      try {
+        const response = await fetch(`/api/profiles/${encodeURIComponent(username)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to analyze profile.');
+        }
+
+        showToast(`Analyzed and saved profile for @${data.profile.username}!`, 'success');
+        currentProfile = data.profile;
+        displayProfile(data.profile);
+        await fetchHistory();
+        highlightHistoryItem(data.profile.username);
+        switchTab('single');
+      } catch (err) {
+        showToast(err.message, 'error');
+        showLoading(false);
+        resetToWelcome();
+      }
+    });
+
+    async function fetchHistory() {
+      try {
+        const response = await fetch('/api/profiles');
+        if (!response.ok) throw new Error('Could not fetch stored analyses.');
+        storedProfilesList = await response.json();
+
+        // Populate sidebar list
+        if (storedProfilesList.length === 0) {
+          historyList.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); padding: 2rem; font-size: 0.9rem;">
+              No stored analyses yet.
+            </div>`;
+          tabsHeader.style.display = 'none';
+          return;
+        }
+
+        tabsHeader.style.display = 'flex';
+
+        historyList.innerHTML = storedProfilesList.map(profile => `
+          <div class="history-item" data-username="${profile.username}" onclick="selectProfile('${profile.username}')">
+            <div class="history-user">
+              <img src="${profile.avatar_url}" alt="${profile.username}" class="history-avatar">
+              <div class="history-info">
+                <span class="history-name">${profile.name || profile.username}</span>
+                <span class="history-meta">${profile.public_repos} repos • ${profile.total_stars} ★</span>
+              </div>
+            </div>
+            <div class="history-actions">
+              <button class="btn-icon-delete" onclick="deleteProfile(event, '${profile.username}')" title="Delete record">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        `).join('');
+
+        // Populate compare select dropdowns
+        populateCompareSelectors();
+      } catch (err) {
+        console.error('History fetch error:', err);
+      }
+    }
+
+    function populateCompareSelectors() {
+      const selectA = document.getElementById('compareSelectA');
+      const selectB = document.getElementById('compareSelectB');
+      
+      const options = ['<option value="">-- Choose Profile --</option>']
+        .concat(storedProfilesList.map(p => `<option value="${p.username}">${p.name || p.username} (${p.username})</option>`))
+        .join('');
+        
+      selectA.innerHTML = options;
+      selectB.innerHTML = options;
+      
+      // Auto pre-fill Profile A with current profile if available
+      if (currentProfile) {
+        selectA.value = currentProfile.username;
+      }
+    }
+
+    async function selectProfile(username) {
+      showLoading(true);
+      try {
+        const response = await fetch(`/api/profiles/${encodeURIComponent(username)}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to retrieve profile.');
+        }
+
+        currentProfile = data;
+        displayProfile(data);
+        highlightHistoryItem(username);
+        switchTab('single');
+      } catch (err) {
+        showToast(err.message, 'error');
+        showLoading(false);
+      }
+    }
+
+    async function deleteProfile(event, username) {
+      event.stopPropagation();
+      if (!confirm(`Are you sure you want to delete stored analysis for ${username}?`)) return;
+
+      try {
+        const response = await fetch(`/api/profiles/${encodeURIComponent(username)}`, {
+          method: 'DELETE'
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to delete profile.');
+        }
+
+        showToast(`Deleted analysis for @${username}`, 'success');
+        
+        if (currentProfile && currentProfile.username === username) {
+          currentProfile = null;
+          resetToWelcome();
+        }
+
+        await fetchHistory();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    function displayProfile(profile) {
+      showLoading(false);
+      welcomeState.style.display = 'none';
+      compareProfilesView.style.display = 'none';
+      singleProfileView.style.display = 'flex';
+
+      // Profile details
+      document.getElementById('profAvatar').src = profile.avatar_url;
+      document.getElementById('profName').textContent = profile.name || profile.username;
+      
+      const githubLink = document.getElementById('profGithubLink');
+      githubLink.href = profile.html_url;
+      githubLink.innerHTML = `<i class="fa-brands fa-github"></i> @${profile.username}`;
+      
+      const bioEl = document.getElementById('profBio');
+      if (profile.bio) {
+        bioEl.textContent = profile.bio;
+        bioEl.style.display = 'block';
+      } else {
+        bioEl.style.display = 'none';
+      }
+
+      toggleDetail('profCompany', 'profCompanyItem', profile.company);
+      toggleDetail('profLocation', 'profLocationItem', profile.location);
+      toggleDetail('profEmail', 'profEmailItem', profile.email);
+      
+      const blogItem = document.getElementById('profBlogItem');
+      if (profile.blog) {
+        const blogLink = document.getElementById('profBlog');
+        let formattedBlog = profile.blog;
+        if (!formattedBlog.startsWith('http://') && !formattedBlog.startsWith('https://')) {
+          formattedBlog = 'https://' + formattedBlog;
+        }
+        blogLink.href = formattedBlog;
+        blogLink.textContent = profile.blog;
+        blogItem.style.display = 'flex';
+      } else {
+        blogItem.style.display = 'none';
+      }
+
+      // Statistics
+      document.getElementById('statStars').textContent = profile.total_stars.toLocaleString();
+      document.getElementById('statRepos').textContent = profile.public_repos.toLocaleString();
+      document.getElementById('statFollowers').textContent = profile.followers.toLocaleString();
+      document.getElementById('statFollowing').textContent = profile.following.toLocaleString();
+
+      // Render Chart.js Language Chart
+      renderLanguageChart(profile.top_languages);
+
+      // Render Repos list with sorting & searching
+      renderRepositoriesList();
+    }
+
+    function renderLanguageChart(topLanguages) {
+      const ctx = document.getElementById('languageChart').getContext('2d');
+      
+      // Destroy existing chart if it exists
+      if (languageChartRef) {
+        languageChartRef.destroy();
+      }
+
+      if (!topLanguages || topLanguages.length === 0) {
+        // Draw empty text on canvas if no stats
+        ctx.clearRect(0, 0, 400, 400);
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '14px Outfit';
+        ctx.textAlign = 'center';
+        ctx.fillText('No language statistics available.', 200, 200);
+        return;
+      }
+
+      const labels = topLanguages.map(l => l.language);
+      const counts = topLanguages.map(l => l.count);
+      const backgroundColor = topLanguages.map(l => langColors[l.language] || '#cccccc');
+
+      languageChartRef = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: counts,
+            backgroundColor: backgroundColor,
+            borderWidth: 1,
+            borderColor: 'rgba(255, 255, 255, 0.05)'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                color: '#f3f4f6',
+                font: {
+                  family: 'Outfit',
+                  size: 12
+                }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const val = context.raw;
+                  const pct = Math.round((val / total) * 100);
+                  return ` ${context.label}: ${val} repos (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderRepositoriesList() {
+      const reposContainer = document.getElementById('reposContainer');
+      const searchTerm = repoSearch.value.toLowerCase();
+      const sortBy = repoSort.value;
+
+      if (!currentProfile.top_repositories || currentProfile.top_repositories.length === 0) {
+        reposContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.9rem;">No repositories.</div>`;
+        return;
+      }
+
+      // Filter
+      let repos = currentProfile.top_repositories.filter(repo => 
+        repo.name.toLowerCase().includes(searchTerm) || 
+        (repo.description && repo.description.toLowerCase().includes(searchTerm)) ||
+        repo.language.toLowerCase().includes(searchTerm)
+      );
+
+      // Sort
+      repos.sort((a, b) => {
+        if (sortBy === 'stars') return b.stars - a.stars;
+        if (sortBy === 'forks') return b.forks - a.forks;
+        if (sortBy === 'name') return a.name.localeCompare(b.name);
+        return 0;
+      });
+
+      if (repos.length === 0) {
+        reposContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 1.5rem;">No repositories match search filter.</div>`;
+        return;
+      }
+
+      reposContainer.innerHTML = repos.map(repo => {
+        const color = langColors[repo.language] || '#cccccc';
+        return `
+          <div class="repo-card">
+            <div class="repo-header">
+              <a href="${repo.html_url}" target="_blank" class="repo-name">
+                ${repo.name} <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.75rem;"></i>
+              </a>
+            </div>
+            <div class="repo-desc">${repo.description}</div>
+            <div class="repo-footer">
+              <span class="repo-lang">
+                <span class="lang-dot" style="background-color: ${color}; width: 8px; height: 8px;"></span>
+                ${repo.language}
+              </span>
+              <span class="repo-stat-item"><i class="fa-solid fa-star"></i> ${repo.stars.toLocaleString()}</span>
+              <span class="repo-stat-item"><i class="fa-solid fa-code-fork" style="color: var(--text-secondary)"></i> ${repo.forks.toLocaleString()}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Repository filter/sort listeners
+    repoSearch.addEventListener('input', renderRepositoriesList);
+    repoSort.addEventListener('change', renderRepositoriesList);
+
+    // Switch between Profile details and Profile Comparison tabs
+    function switchTab(tab) {
+      activeTab = tab;
+      
+      // Update buttons active class
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.getAttribute('onclick').includes(tab)) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+
+      if (tab === 'single') {
+        compareProfilesView.style.display = 'none';
+        if (currentProfile) {
+          singleProfileView.style.display = 'flex';
+          welcomeState.style.display = 'none';
+        } else {
+          resetToWelcome();
+        }
+      } else if (tab === 'compare') {
+        singleProfileView.style.display = 'none';
+        welcomeState.style.display = 'none';
+        compareProfilesView.style.display = 'flex';
+        
+        // Auto trigger comparison if selectors are prefilled
+        runComparison();
+      }
+    }
+
+    function runComparison() {
+      const userA = document.getElementById('compareSelectA').value;
+      const userB = document.getElementById('compareSelectB').value;
+      
+      const compareResults = document.getElementById('compareResults');
+      const compareEmpty = document.getElementById('compareEmpty');
+
+      if (!userA || !userB || userA === userB) {
+        compareResults.style.display = 'none';
+        compareEmpty.style.display = 'block';
+        return;
+      }
+
+      compareResults.style.display = 'flex';
+      compareEmpty.style.display = 'none';
+
+      const profileA = storedProfilesList.find(p => p.username === userA);
+      const profileB = storedProfilesList.find(p => p.username === userB);
+
+      // Render comparison table
+      document.getElementById('compareNameA').textContent = profileA.name || profileA.username;
+      document.getElementById('compareNameB').textContent = profileB.name || profileB.username;
+      
+      document.getElementById('compareStarsA').textContent = profileA.total_stars.toLocaleString();
+      document.getElementById('compareStarsB').textContent = profileB.total_stars.toLocaleString();
+      
+      document.getElementById('compareReposA').textContent = profileA.public_repos.toLocaleString();
+      document.getElementById('compareReposB').textContent = profileB.public_repos.toLocaleString();
+      
+      document.getElementById('compareFollowersA').textContent = profileA.followers.toLocaleString();
+      document.getElementById('compareFollowersB').textContent = profileB.followers.toLocaleString();
+      
+      document.getElementById('compareFollowingA').textContent = profileA.following.toLocaleString();
+      document.getElementById('compareFollowingB').textContent = profileB.following.toLocaleString();
+      
+      const getTopLang = (profile) => {
+        if (profile.top_languages && profile.top_languages.length > 0) {
+          return `${profile.top_languages[0].language} (${profile.top_languages[0].count})`;
+        }
+        return 'N/A';
+      };
+      document.getElementById('compareLangA').textContent = getTopLang(profileA);
+      document.getElementById('compareLangB').textContent = getTopLang(profileB);
+
+      // Draw Chart.js comparison chart
+      renderComparisonChart(profileA, profileB);
+    }
+
+    function renderComparisonChart(profileA, profileB) {
+      const ctx = document.getElementById('comparisonChart').getContext('2d');
+
+      if (comparisonChartRef) {
+        comparisonChartRef.destroy();
+      }
+
+      comparisonChartRef = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Stars', 'Public Repos', 'Followers', 'Following'],
+          datasets: [
+            {
+              label: profileA.name || profileA.username,
+              data: [profileA.total_stars, profileA.public_repos, profileA.followers, profileA.following],
+              backgroundColor: 'rgba(139, 92, 246, 0.6)',
+              borderColor: 'rgba(139, 92, 246, 1)',
+              borderWidth: 1
+            },
+            {
+              label: profileB.name || profileB.username,
+              data: [profileB.total_stars, profileB.public_repos, profileB.followers, profileB.following],
+              backgroundColor: 'rgba(16, 185, 129, 0.6)',
+              borderColor: 'rgba(16, 185, 129, 1)',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: '#9ca3af',
+                font: { family: 'Outfit' }
+              }
+            },
+            x: {
+              grid: {
+                display: false
+              },
+              ticks: {
+                color: '#9ca3af',
+                font: { family: 'Outfit' }
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: '#f3f4f6',
+                font: { family: 'Outfit', size: 12 }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function resetToWelcome() {
+      welcomeState.style.display = 'flex';
+      loadingState.style.display = 'none';
+      singleProfileView.style.display = 'none';
+      compareProfilesView.style.display = 'none';
+    }
+
+    function toggleDetail(textId, itemId, value) {
+      const item = document.getElementById(itemId);
+      const text = document.getElementById(textId);
+      if (value) {
+        text.textContent = value;
+        item.style.display = 'flex';
+      } else {
+        item.style.display = 'none';
+      }
+    }
+
+    function showLoading(isLoading) {
+      if (isLoading) {
+        welcomeState.style.display = 'none';
+        singleProfileView.style.display = 'none';
+        compareProfilesView.style.display = 'none';
+        loadingState.style.display = 'flex';
+        searchBtn.disabled = true;
+        searchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...`;
+      } else {
+        loadingState.style.display = 'none';
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass-chart"></i> Analyze Profile`;
+      }
+    }
+
+    function highlightHistoryItem(username) {
+      document.querySelectorAll('.history-item').forEach(item => {
+        if (item.getAttribute('data-username') === username) {
+          item.classList.add('active');
+        } else {
+          item.classList.remove('active');
+        }
+      });
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      
+      let icon = '<i class="fa-solid fa-circle-info toast-icon"></i>';
+      if (type === 'success') {
+        icon = '<i class="fa-solid fa-circle-check toast-icon success"></i>';
+      } else if (type === 'error') {
+        icon = '<i class="fa-solid fa-triangle-exclamation toast-icon error"></i>';
+      }
+
+      toast.innerHTML = `${icon} <span>${message}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.animation = 'slideIn 0.3s reverse';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+  </script>
+</body>
+</html>
